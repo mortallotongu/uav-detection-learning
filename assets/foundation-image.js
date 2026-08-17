@@ -1,0 +1,11 @@
+FOUNDATION.image={no:'A1.2',title:'图像与张量',en:'Image & Tensor',time:'2–2.5 小时',lead:'把肉眼看到的图片逐步翻译成模型真正接收的数字。',units:[
+{id:'pixel',zh:'像素',en:'Pixel',pre:['scalar'],quick:'栅格图像中的一个采样位置。',basic:'每个位置保存颜色测量；放大只会把已有像素显示得更大，不会自动产生真实细节。',deep:'像素值受传感器、曝光、量化和压缩影响。模型看到的是采样数值，不是现实物体本身。'},
+{id:'rgb',zh:'RGB',en:'RGB',pre:['pixel','vector'],quick:'用红、绿、蓝三个数描述一个像素颜色。',basic:'8-bit 图像常用 0–255；进入网络前通常转浮点并调整尺度。一个像素可看成 3 维颜色向量。',deep:'RGB 是输入通道的物理含义；CNN 中间的 64 个 channel 不再表示 64 种颜色。'},
+{id:'resolution',zh:'分辨率',en:'Resolution',pre:['pixel'],quick:'横向和纵向各有多少像素。',basic:'640×480 通常表示宽 640、高 480。高分辨率提供更多采样位置，也增加内存和计算。',deep:'分辨率不等于画质：模糊、噪声和目标所占像素仍决定信息量。UAV 小目标经常只占很少像素。'},
+{id:'image-tensor',zh:'图像张量',en:'Image Tensor',pre:['tensor','rgb','resolution'],quick:'把图像数值按轴放进张量，供模型计算。',basic:'单张 RGB 图可排成 C×H×W，多张组成 N×C×H×W。轴顺序只是约定，必须确认。',deep:'同一张图可采用 HWC 或 CHW。正确 transpose 只重排组织方式，不改变对应像素内容。'},
+{id:'shape',zh:'形状',en:'Shape',pre:['tensor','image-tensor'],quick:'列出张量每个轴有多长。',basic:'1×3×640×640 表示 N=1、C=3、H=640、W=640；shape 是追踪数据流的地图。',deep:'元素数是各轴长度乘积，内存还取决于 dtype；float32 每元素通常占 4 bytes。'},
+{id:'channel',zh:'通道',en:'Channel',pre:['rgb','shape'],quick:'同一空间位置上并列的不同信息层。',basic:'RGB 输入有 3 个颜色通道；CNN 中间通道是不同学习响应，未必能单独命名。',deep:'Channel 不是图片张数。N 是样本批次，C 是每个样本在同一位置保存的表示宽度。'},
+{id:'batch',zh:'批次',en:'Batch',pre:['shape'],quick:'一次并行送进模型的一组样本。',basic:'B=4 表示同一次计算处理 4 张图；每张仍有自己的 C/H/W。',deep:'Batch 影响内存、梯度估计和每 epoch 的 iteration 数，但绝不等于 epoch。'},
+{id:'normalization',zh:'数值归一化',en:'Normalization',pre:['rgb','scalar'],quick:'按规则调整数值尺度，方便模型稳定计算。',basic:'最简单可把 0–255 除以 255；也常按通道减均值、除标准差。',deep:'它不增加图像信息，也不等于 LayerNorm/BatchNorm。推理预处理必须与预训练时的约定一致。'}],
+recalls:[['解释 `4×3×320×320`，不要说“4 个通道”。','4 张图；每张 3 通道；高宽都是 320。'],['为什么 64 个中间通道不是 64 种颜色？','它们是训练学出的特征响应。'],['更高分辨率为什么既可能有利又有代价？','保留更多小目标采样，但元素数、内存和计算上升。']],
+quiz:[['choice','RGB 的 G 是？',['灰度','绿色','梯度'],1,'Green。'],['choice','2×3×640×640 有多少元素？',['2457600','1280','6'],0,'四轴相乘。'],['tf','放大必然恢复真实细节。',['正确','错误'],1,'不能创造未采样信息。'],['open','解释 Channel 与 Batch。',[],-1,'Channel 是每个样本的信息层，Batch 是样本组。'],['choice','NCHW 中 H 是？',['高度','颜色','样本'],0,'Height。'],['tf','CHW 转 HWC 一定改变颜色。',['正确','错误'],1,'正确重排轴不改变内容。'],['choice','10 个 float32 元素约占？',['10B','40B','320B'],1,'每元素通常 4 bytes。'],['open','为什么归一化规则不能随意换？',[],-1,'模型适应了训练时的数值分布。']]};
