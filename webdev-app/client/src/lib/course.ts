@@ -414,6 +414,59 @@ export const chapters: Chapter[] = [
 ];
 
 const deepContent: Record<string, Pick<Lesson, "formula" | "workedExample" | "codeNote" | "paperNote" | "pitfall">> = {
+  nms: {
+    formula: "按分数排序 → 保留最高分框 → 删除 IoU > 阈值的邻近框 → 重复",
+    workedExample: { title: "NMS 为什么会误伤相邻目标", steps: ["两个行人框分数为 0.91 和 0.86", "若它们 IoU=0.65，NMS 阈值设为 0.5", "低分框会被删除，即使它们可能属于两个相邻行人"], result: "NMS 把重叠当成重复的近似规则；密集目标中，重叠不一定意味着同一个实例。" },
+    codeNote: { path: "post_process / nms", focus: "它发生在模型预测之后；DETR 则把去重倾向部分前移到训练时的集合匹配。" },
+    pitfall: "DETR 不依赖传统 NMS，不等于 DETR 不需要任何后处理或阈值。",
+  },
+  set: {
+    formula: "预测集合 ŷ = {ŷᵢ}，而不是按编号排列的目标列表",
+    workedExample: { title: "固定 5 个槽位如何表示 2 个目标", steps: ["slot 1 输出 car，slot 2 输出 person", "slot 3、4、5 输出 no-object", "真实目标只有 2 个，因此其余槽位不应被当成漏检"], result: "固定数量的 query 是容量，不是图像中真实目标数量；no-object 让集合大小可以变化。" },
+    codeNote: { path: "transformer.decoder / class_embed / bbox_embed", focus: "沿 decoder 输出看每个 query 如何分别接入分类头和框预测头。" },
+    paperNote: "DETR 的集合预测视角是理解 D-FINE 的入口：D-FINE 改的是定位回归，不是把集合预测框架丢掉。",
+    pitfall: "不要把第 1 个 query 永久理解成第 1 个目标；query 的责任由匹配和训练形成。",
+  },
+  multiscale: {
+    formula: "stride=4/8/16/32 → 约 160²/80²/40²/20² 个空间位置（输入 640²）",
+    workedExample: { title: "同一个目标落在哪个尺度", steps: ["20×20 像素的小车在 stride=32 特征上只覆盖很少位置", "在 stride=4 特征上，它仍有更密集的空间采样", "深层语义可以通过融合帮助高分辨率层判断这是不是目标"], result: "多尺度不是简单复制特征，而是在空间细节和语义上下文之间建立互补。" },
+    codeNote: { path: "backbone outputs → neck / encoder input projection", focus: "记录每层 feature 的 stride、shape 和 channel，再看它们如何送入 Transformer。" },
+    pitfall: "高分辨率特征有利于小目标，但并不自动解决类别混淆、遮挡或低质量标注。",
+  },
+  pretrain: {
+    workedExample: { title: "公平比较训练起点", steps: ["模型 A 与模型 B 结构相同", "A 使用预训练权重，B 随机初始化", "若 A 指标更高，结论只能是训练起点不同带来差异，不能归因于结构"], result: "实验报告必须把结构、权重来源、数据和训练协议拆开记录。" },
+    codeNote: { path: "load_state_dict / resume / pretrained", focus: "检查权重是否真正加载、哪些 key 被忽略，以及是否只是恢复训练 checkpoint。" },
+    pitfall: "预训练权重、继续训练 checkpoint 和随机初始化不是同一件事。",
+  },
+  tokens: {
+    formula: "Feature Map [C,H,W] → flatten → [HW,C] → linear projection → [HW,d_model]",
+    workedExample: { title: "4×4 特征图如何变成 16 个 token", steps: ["每个空间位置有一个 C 维向量", "4×4 个位置排列成长度为 16 的序列", "加入位置编码后，Transformer 才能区分左上和右下"], result: "展平改变排列，不会自动消除空间信息；位置编码负责告诉模型每个 token 来自哪里。" },
+    codeNote: { path: "flatten(2).permute(0,2,1) + positional_encoding", focus: "重点核对 permute 后哪个轴是序列长度、哪个轴是 embedding 维度。" },
+    pitfall: "Token 不是目标框，也不是必须对应一个完整物体；它通常是一个空间位置的特征表示。",
+  },
+  decoder: {
+    workedExample: { title: "一个 query 如何变成一个预测", steps: ["query 先与其他 query 交流，避免所有槽位重复关注同一目标", "再通过 cross-attention 读取图像 memory", "预测头把更新后的向量映射为类别概率和框参数"], result: "Object Query 是可学习的工作槽位，目标身份不是预先写死的。" },
+    codeNote: { path: "decoder.layers → norm → class_embed / bbox_embed", focus: "分别观察 query 的 hidden state、分类 logits 和边界框输出。" },
+    pitfall: "Query 数量固定不表示图中一定有同样多的物体。",
+  },
+  regression: {
+    formula: "box = (cₓ, cᵧ, w, h) 或 (x₁,y₁,x₂,y₂)，需与标注使用同一坐标约定",
+    workedExample: { title: "同一目标的两种框表示", steps: ["左上右下：(20,30,80,90)", "中心宽高：cₓ=50，cᵧ=60，w=60，h=60", "两种表示描述同一几何区域，但转换和归一化必须一致"], result: "很多定位错误不是模型理论错误，而是坐标格式、归一化或图像缩放没有对齐。" },
+    codeNote: { path: "bbox_embed / box_cxcywh_to_xyxy / sigmoid", focus: "确认输出坐标的范围、格式和后处理转换，再解释回归损失。" },
+    pitfall: "分类正确只说明类别判断对了，不代表边界框已达到评估阈值。",
+  },
+  denoising: {
+    formula: "带噪目标 → decoder → 恢复原类别与位置（训练辅助路径）",
+    workedExample: { title: "去噪训练在教模型什么", steps: ["真实框类别为 car，位置被加入小扰动", "模型接收带噪的 query 或目标提示", "训练目标要求它恢复 car 和原始边界"], result: "它给早期训练提供较明确的恢复任务，但推理时不等于额外增加同样的去噪样本。" },
+    codeNote: { path: "get_cdn_group / denoising_queries / aux_outputs", focus: "区分去噪 query、普通 matching query 和中间层 auxiliary output。" },
+    pitfall: "training-only 机制不能直接当成推理速度或最终输出数量的变化。",
+  },
+  "localization-gap": {
+    formula: "直接回归：特征 → 单点坐标；分布细化：特征 → 位置概率 → 迭代修正",
+    workedExample: { title: "单点和分布的信息差", steps: ["单点预测 5.1 只告诉你一个结果", "分布 [0.1,0.7,0.2] 还告诉你 5 附近最可信、4/6 仍有可能", "refinement 可以在已有定位附近继续修正，而不是重新猜完整坐标"], result: "D-FINE 的问题意识是：定位过程本身的信息，是否可以被模型保留并用于下一次修正？" },
+    paperNote: "进入 D-FINE 方法部分前，先把“静态单点回归”和“可细化分布”写成两行对照，读公式会更容易。",
+    pitfall: "D-FINE 不是用分布替代最终边界框；最终仍要输出可评估的框。",
+  },
   "task-output": {
     workedExample: { title: "一个预测的最小结构", steps: ["类别：car", "位置：x₁=20, y₁=30, x₂=80, y₂=90", "分数：0.92，表示模型对这条预测的置信度"], result: "所以一个检测结果不是“这张图是汽车”，而是“这里有一辆汽车，而且它的范围在这里”。" },
     codeNote: { path: "model output → class_logits / boxes", focus: "先分清类别输出与框输出，后面的 loss 才有对应对象。" },
@@ -495,9 +548,19 @@ export const allLessons = chapters.flatMap((chapter) =>
 
 export const glossary = [
   ["Feature Map", "卷积或 Backbone 产生的响应张量；每个通道记录一种学习出的模式响应。"],
+  ["Backbone", "负责从图像提取层级视觉特征的主干网络，是从像素走向检测预测的第一段。"],
+  ["Feature Pyramid", "同时保留不同空间分辨率特征的组织方式，用来兼顾细节与语义。"],
+  ["Ground Truth", "数据集中的人工标注目标，训练和评估时作为比较预测的参考。"],
   ["Object Query", "DETR Decoder 中可学习的目标级查询槽位，不是图像中的像素或真实框。"],
   ["Hungarian Matching", "在预测集合与真实目标集合之间寻找低代价一对一匹配的算法。"],
+  ["No-object", "没有匹配到真实目标的预测槽位所学习的背景类别，用来容纳固定数量 query。"],
+  ["NMS", "按分数和 IoU 删除重复候选框的后处理规则；密集目标中可能误删相邻实例。"],
+  ["GIoU", "在 IoU 之外考虑包围区域的几何框损失，帮助框在不重叠时仍获得位置方向。"],
+  ["Denoising Training", "训练时向目标或 query 加入噪声，再要求模型恢复原类别和位置的辅助机制。"],
   ["FDR", "D-FINE 的 Fine-grained Distribution Refinement，把边界定位表示为可细化的分布过程。"],
+  ["RegMax", "将边界位置分布离散到若干位置 bin 的回归表达维度，常与分布积分联系起来。"],
   ["GO-LSD", "D-FINE 的 Global Optimal Localization Self-Distillation，让不同层共享更优的定位知识。"],
+  ["DDF / FGL", "D-FINE 训练中与分布细化、定位知识传递相关的损失或训练目标名称；应结合代码定义阅读。"],
+  ["APs / APm / APl", "按目标面积区间报告的 AP，用来观察模型在小、中、大目标上的差异。"],
   ["AP50:95", "在多个 IoU 阈值上综合计算的 COCO 风格平均精度，不是置信度区间。"],
 ];
