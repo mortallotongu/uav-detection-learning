@@ -9,7 +9,7 @@
   "theme_color": "#f4f0e8",
   "icons": [
     {
-      "src": "/manus-storage/dfine-mark_f6713db7.png",
+      "src": "./assets/dfine-mark.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"
