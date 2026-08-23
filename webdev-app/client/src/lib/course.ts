@@ -11,6 +11,11 @@ export type Lesson = {
   check: string;
   lab?: "box" | "tensor" | "attention" | "distribution";
   terms: string[];
+  formula?: string;
+  workedExample?: { title: string; steps: string[]; result: string };
+  codeNote?: { path: string; focus: string };
+  paperNote?: string;
+  pitfall?: string;
 };
 
 export type Chapter = {
@@ -408,8 +413,84 @@ export const chapters: Chapter[] = [
   },
 ];
 
+const deepContent: Record<string, Pick<Lesson, "formula" | "workedExample" | "codeNote" | "paperNote" | "pitfall">> = {
+  "task-output": {
+    workedExample: { title: "一个预测的最小结构", steps: ["类别：car", "位置：x₁=20, y₁=30, x₂=80, y₂=90", "分数：0.92，表示模型对这条预测的置信度"], result: "所以一个检测结果不是“这张图是汽车”，而是“这里有一辆汽车，而且它的范围在这里”。" },
+    codeNote: { path: "model output → class_logits / boxes", focus: "先分清类别输出与框输出，后面的 loss 才有对应对象。" },
+    pitfall: "置信度高不等于框一定准；分数主要表达模型信心，IoU 才直接比较框的位置质量。",
+  },
+  iou: {
+    formula: "IoU = Area(预测框 ∩ 真实框) / Area(预测框 ∪ 真实框)",
+    workedExample: { title: "用面积手算 IoU", steps: ["交集面积 = 40 × 40 = 1600", "并集面积 = 预测框面积 2500 + 真实框面积 2500 − 1600 = 3400", "IoU = 1600 / 3400 ≈ 0.471"], result: "即使两个框看起来有明显重叠，IoU 也可能低于 AP50 的 0.50 门槛。" },
+    codeNote: { path: "box_iou / generalized_box_iou", focus: "训练中的 GIoU 与评估中的 IoU 相关，但不是同一个实现或同一个目标。" },
+    pitfall: "不要把 AP50 读成 50% 准确率；50 指 IoU 阈值。",
+  },
+  metrics: {
+    formula: "Precision = TP/(TP+FP)，Recall = TP/(TP+FN)",
+    workedExample: { title: "三类结果如何改变指标", steps: ["真实目标 10 个，模型找回 8 个：TP=8，FN=2", "模型共报 10 个框，其中 2 个是误检：FP=2", "Precision=8/10=0.80，Recall=8/10=0.80"], result: "同一个模型调低阈值后可能 Recall 上升，同时 FP 增多、Precision 下降。" },
+    paperNote: "COCO 风格 AP 会在多个 IoU 阈值和类别上综合评价，不能只凭一次阈值判断模型。",
+    pitfall: "AP、Precision、Recall 和置信度不是同义词；它们回答不同问题。",
+  },
+  tensor: {
+    formula: "N×C×H×W = batch × channels × height × width",
+    workedExample: { title: "追踪一次下采样", steps: ["输入：1×3×640×640", "stride=4 的浅层：1×64×160×160", "每个空间位置从 3 个颜色值变成 64 个学习出的响应"], result: "空间位置减少了 16 倍，但表示通道增加；这正是计算效率与细节保留之间的交换。" },
+    codeNote: { path: "backbone(features)", focus: "读代码时先打印每个返回 feature 的 shape，再讨论语义。" },
+    pitfall: "C=64 不代表图像有 64 种颜色，而是有 64 个特征响应通道。",
+  },
+  conv: {
+    formula: "输出尺寸 = ⌊(输入尺寸 + 2P − K)/S⌋ + 1",
+    workedExample: { title: "3×3 卷积改变什么", steps: ["输入空间尺寸 8，kernel K=3，padding P=1，stride S=2", "输出尺寸 = floor((8+2−3)/2)+1 = 4", "一个输出位置对应输入上的一个局部窗口"], result: "stride=2 将空间网格减半；它既降低计算量，也增加了小目标信息被压缩的风险。" },
+    codeNote: { path: "nn.Conv2d(in_channels, out_channels, ...)", focus: "重点查看 in_channels、out_channels、stride 和 padding，而不是只看层名。" },
+    pitfall: "卷积核不是手工写死的边缘模板，而是通过训练学习出来的参数。",
+  },
+  loop: {
+    formula: "θ ← θ − η · ∇θ L(θ)",
+    workedExample: { title: "一次参数更新", steps: ["当前参数 θ=2.0，学习率 η=0.1", "梯度 ∇θL=3.0，说明增大 θ 会让损失上升", "更新后 θ=2.0−0.1×3.0=1.7"], result: "优化器不是直接记住标签，而是利用梯度让下一次预测更有利于降低损失。" },
+    codeNote: { path: "loss.backward() → optimizer.step()", focus: "这两步之间是误差传回参数并完成一次更新的关键位置。" },
+    pitfall: "epoch 相同不代表更新次数相同；更新次数还取决于数据量和 batch size。",
+  },
+  losses: {
+    formula: "L_total = λ_cls L_cls + λ_box L_box + λ_iou L_iou + …",
+    workedExample: { title: "为什么一个框会有多个损失", steps: ["类别错：分类项惩罚概率分配", "框偏移：L1 或其他回归项惩罚坐标差异", "形状重叠差：IoU/GIoU 项提供几何约束"], result: "总损失是多个学习目标的加权组合；看日志时要把每一项和可观察的错误类型对应起来。" },
+    codeNote: { path: "criterion / loss_dict", focus: "先看 loss 字段如何汇总，再看每个分量接收的是 logits、boxes 还是匹配结果。" },
+    pitfall: "训练 loss 下降不等于 AP 一定上升，必须结合验证集和可视化判断。",
+  },
+  matching: {
+    formula: "σ* = argmin_σ Σᵢ [cost_cls + cost_box + cost_iou]",
+    workedExample: { title: "三个预测槽位如何分给两个目标", steps: ["目标 A 与槽位 1 的总代价 0.2，与槽位 2 的代价 0.8", "目标 B 与槽位 1 的代价 0.7，与槽位 2 的代价 0.3", "最优一对一分配是 A→1、B→2，剩余槽位学习 no-object"], result: "匹配先决定责任归属，之后分类和定位损失才知道该惩罚哪个预测。" },
+    codeNote: { path: "HungarianMatcher / SetCriterion", focus: "把 matcher 看成责任分配器，把 criterion 看成分配后计算学习信号的地方。" },
+    paperNote: "DETR 的关键变化是集合预测与二分图匹配，而不是把 NMS 换成另一个后处理器。",
+    pitfall: "Object Query 不是一个真实目标标签；它是等待学习负责某个目标的预测槽位。",
+  },
+  attention: {
+    formula: "Attention(Q,K,V) = softmax(QKᵀ/√dₖ)V",
+    workedExample: { title: "一次极简 Attention", steps: ["某个 Query 与四个 Key 的相似度为 [2, 1, 0, 0]", "Softmax 后权重大致为 [0.64, 0.24, 0.06, 0.06]", "输出是四个 Value 按这些权重加权后的和"], result: "模型不是平均读取所有位置，而是根据当前 Query 对信息进行有选择的聚合。" },
+    codeNote: { path: "TransformerEncoder / TransformerDecoder", focus: "区分 self-attention 的同源 Q/K/V 与 decoder cross-attention 的不同来源。" },
+    pitfall: "Attention 权重是读取关系，不等于严格的人类可解释因果图。",
+  },
+  fdr: {
+    formula: "坐标 ≈ Σₖ pₖ · k（由离散位置分布的期望得到连续位置）",
+    workedExample: { title: "从分布得到一个边界位置", steps: ["三个位置 bin 为 [4, 5, 6]，概率为 [0.1, 0.7, 0.2]", "期望 = 4×0.1 + 5×0.7 + 6×0.2 = 5.1", "下一次 refinement 不必从零预测，而是围绕当前分布修正"], result: "分布同时表达位置和不确定性；峰值集中且靠近真实边界时，期望坐标会更稳定。" },
+    codeNote: { path: "DFINETransformer / integral / reg_max", focus: "寻找边界分布、积分或期望转换，以及 decoder 层间 refinement 的实现位置。" },
+    paperNote: "原论文将 FDR 定义为把固定坐标回归改为概率分布的迭代细化，并把它作为定位精度的核心来源。",
+    pitfall: "FDR 不是把一个普通框画得更粗；它改变的是定位结果的中间表示和更新方式。",
+  },
+  "go-lsd": {
+    formula: "浅层定位目标 ← 深层 refined localization knowledge",
+    workedExample: { title: "为什么要层间传递定位知识", steps: ["第 1 层给出粗框，后续层逐步修正", "只监督最后一层时，前面层的定位可能不够有用", "GO-LSD 让更优定位信息参与较浅层，同时简化深层残差任务"], result: "它不是额外引入一个外部教师，而是利用模型内部不同深度之间的定位结果。" },
+    codeNote: { path: "decoder layers / distillation loss", focus: "在代码中寻找深层输出、浅层输出和定位蒸馏损失之间的依赖。" },
+    paperNote: "GO-LSD 是双向优化策略： refined distributions 向浅层传递定位知识，同时让深层承担更简单的残差预测。",
+    pitfall: "GO-LSD 的重点是 localization knowledge，不应泛化成所有特征都被蒸馏。",
+  },
+  "whole-model": {
+    workedExample: { title: "用五句话复述完整链条", steps: ["图像经过 Backbone 形成多尺度特征", "Transformer 让空间位置和目标级查询交流信息", "每个 Query 输出类别和框，匹配器分配责任", "普通 DETR 用回归目标学习框，D-FINE 用 FDR 逐步细化边界分布", "GO-LSD 让不同 decoder 层共享更优的定位知识"], result: "如果你能不看页面讲出这五句话，就已经把 D-FINE 放回完整检测链，而不是只记住两个缩写。" },
+    paperNote: "阅读 D-FINE 时建议先看 Preliminaries 和 Method，再回到 Experiments 检查 FDR、GO-LSD 各自的消融证据。",
+    pitfall: "不要把 D-FINE 说成单纯更换 Backbone；它的主要研究叙事集中在 DETR 的定位回归。",
+  },
+};
+
 export const allLessons = chapters.flatMap((chapter) =>
-  chapter.lessons.map((lesson) => ({ ...lesson, chapterId: chapter.id, chapterNumber: chapter.number, chapterTitle: chapter.title, color: chapter.color })),
+  chapter.lessons.map((lesson) => ({ ...lesson, ...(deepContent[lesson.id] || {}), chapterId: chapter.id, chapterNumber: chapter.number, chapterTitle: chapter.title, color: chapter.color })),
 );
 
 export const glossary = [

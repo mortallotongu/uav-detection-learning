@@ -160,6 +160,29 @@ function ConceptStrip({ lesson }: { lesson: FlatLesson }) {
   return <div className="concept-strip"><span className="concept-strip-label">本节会遇到</span>{lesson.terms.map((term) => <span className="term-chip" key={term}>{term}</span>)}</div>;
 }
 
+function DeepDivePanel({ lesson }: { lesson: FlatLesson }) {
+  const hasContent = lesson.formula || lesson.workedExample || lesson.codeNote || lesson.paperNote || lesson.pitfall;
+  if (!hasContent) return null;
+  return <section className="deep-dive-panel" aria-label="深度讲解">
+    <div className="deep-dive-head"><div><span className="eyebrow">SLOW DOWN HERE</span><h3>把直觉变成可以复述的机制</h3></div><span className="deep-dive-mark">02</span></div>
+    {lesson.formula && <div className="formula-card"><span>核心表达</span><code>{lesson.formula}</code></div>}
+    {lesson.workedExample && <div className="worked-example"><div className="deep-label">数值例题 · {lesson.workedExample.title}</div><div className="example-steps">{lesson.workedExample.steps.map((step, index) => <div key={step}><b>{String(index + 1).padStart(2, "0")}</b><span>{step}</span></div>)}</div><p className="example-result"><strong>得到什么？</strong>{lesson.workedExample.result}</p></div>}
+    <div className="deep-notes">{lesson.codeNote && <div className="deep-note code-note"><span className="deep-label">代码里找什么</span><code>{lesson.codeNote.path}</code><p>{lesson.codeNote.focus}</p></div>}{lesson.paperNote && <div className="deep-note paper-note"><span className="deep-label">论文阅读提示</span><p>{lesson.paperNote}</p></div>}{lesson.pitfall && <div className="deep-note pitfall-note"><span className="deep-label">最容易混淆</span><p>{lesson.pitfall}</p></div>}</div>
+  </section>;
+}
+
+function ReviewPanel() {
+  const questions = [
+    { q: "D-FINE 主要重新思考了检测链中的哪一部分？", a: "边界框定位回归的表示与细化过程。" },
+    { q: "为什么 DETR 需要 Hungarian Matching？", a: "因为预测是无序集合，需要建立预测槽位与真实目标的一对一责任对应。" },
+    { q: "FDR 中的分布最终如何得到一个连续位置？", a: "对离散位置 bin 按概率求期望，得到连续坐标。" },
+    { q: "GO-LSD 中的教师来自哪里？", a: "来自模型内部更深层、经过 refinement 的定位结果，不是外部教师模型。" },
+    { q: "为什么小目标更能体现定位误差？", a: "同样的像素偏移占目标面积的比例更大，会显著降低 IoU。" },
+  ];
+  const [open, setOpen] = useState<number | null>(null);
+  return <section className="review-panel" id="review"><div className="review-intro"><span className="eyebrow">FINAL RECALL</span><h2>合上页面，试着讲完整。</h2><p>不要先看答案。点开每个问题前，先用自己的话说 30 秒。能讲清机制，比记住缩写更重要。</p></div><div className="review-list">{questions.map((item, index) => <button className={`review-question ${open === index ? "is-open" : ""}`} key={item.q} onClick={() => setOpen(open === index ? null : index)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{item.q}</strong><ChevronDown size={17} />{open === index && <em>{item.a}</em>}</button>)}</div></section>;
+}
+
 function LessonView({ lesson, completed, onComplete, onNext, onPrev }: { lesson: FlatLesson; completed: boolean; onComplete: () => void; onNext: () => void; onPrev: () => void }) {
   return (
     <article className="lesson-view" key={lesson.id}>
@@ -169,6 +192,7 @@ function LessonView({ lesson, completed, onComplete, onNext, onPrev }: { lesson:
       <ConceptStrip lesson={lesson} />
       <div className="why-note"><span>为什么先讲这个？</span><p>{lesson.why}</p></div>
       <div className="explain-stack">{lesson.explain.map((paragraph, index) => <div className="explain-row" key={paragraph}><span className="paragraph-index">{String(index + 1).padStart(2, "0")}</span><p>{paragraph}</p></div>)}</div>
+      <DeepDivePanel lesson={lesson} />
       <LabPanel kind={lesson.lab} />
       <div className="takeaway-card"><div className="takeaway-heading"><Sparkles size={16} /><span>把这一节压缩成三句话</span></div><div className="takeaway-list">{lesson.takeaways.map((item) => <div key={item}><Check size={15} />{item}</div>)}</div></div>
       <div className="check-card"><div className="check-icon"><CircleHelp size={19} /></div><div><span className="check-label">现在试着回答</span><p>{lesson.check}</p></div></div>
@@ -226,7 +250,8 @@ export default function Home() {
           <section className="hero-intro"><div className="hero-copy"><span className="eyebrow">A VISUAL COURSE FOR BEGINNERS</span><h2>不要背 D-FINE。<br /><em>看见它如何定位。</em></h2><p>从一张图、一个特征、一个 Query 开始，直到你能把 FDR 和 GO-LSD 放回完整的检测链里。这里不要求你先成为数学家，只要求每一步都能说清楚。</p><div className="hero-actions"><button className="primary-button" onClick={() => document.getElementById("lesson")?.scrollIntoView({ behavior: "smooth" })}>继续当前章节 <ArrowDown size={15} /></button><span><span className="hero-rule" />{flatLessons.length} 个连续学习单元</span></div></div><div className="hero-art"><img src={HERO_IMAGE} alt="从航拍图像到精细定位的抽象示意" /><div className="hero-stamp"><span>MODEL VIEW</span><strong>01—07</strong><small>from image<br />to refinement</small></div></div></section>
           <section className="spine-panel"><div className="spine-heading"><div><span className="eyebrow">THE SINGLE SPINE</span><h3>一张图，五次变形，最后成为一个更准的框。</h3></div><span className="spine-note">当前阅读：{selected.chapterNumber} / {selected.title}</span></div><div className="spine-path">{[{label: "Image", note: "输入"}, {label: "Feature", note: "特征"}, {label: "Query", note: "查询"}, {label: "Box", note: "预测"}, {label: "Refine", note: "细化"}].map((node, index) => <div className={`spine-node ${index <= Math.min(4, Math.floor(currentIndex / 3)) ? "is-lit" : ""}`} key={node.label}><span>{String(index + 1).padStart(2, "0")}</span><b>{node.label}</b><small>{node.note}</small>{index < 4 && <ArrowRight size={15} />}</div>)}</div></section>
           <section className="lesson-section" id="lesson"><div className="reading-rail"><span className="rail-label">READING NOTE</span><span className="rail-line" /><span className="rail-number">{String(currentIndex + 1).padStart(2, "0")} / {String(flatLessons.length).padStart(2, "0")}</span></div><LessonView lesson={selected} completed={completed.includes(selected.id)} onComplete={toggleCompleted} onNext={goNext} onPrev={goPrev} /></section>
-          <section className="afterword"><div><span className="eyebrow">WHEN YOU FINISH THE SPINE</span><h2>你应该能讲清楚：<br /><em>一个框为什么会变准。</em></h2></div><div className="afterword-copy"><p>不是因为模型“更大”，也不是因为多堆了几个术语，而是因为你理解了从特征到查询、从查询到集合预测、从直接坐标到分布细化的完整链条。</p><button className="text-button" onClick={() => setShowGlossary(true)}>再查几个关键词 <ArrowRight size={15} /></button></div></section>
+          <section className="afterword"><div><span className="eyebrow">WHEN YOU FINISH THE SPINE</span><h2>你应该能讲清楚：<br /><em>一个框为什么会变准。</em></h2></div><div className="afterword-copy"><p>不是因为模型“更大”，也不是因为多堆了几个术语，而是因为你理解了从特征到查询、从查询到集合预测、从直接坐标到分布细化的完整链条。</p><button className="text-button" onClick={() => document.getElementById("review")?.scrollIntoView({ behavior: "smooth" })}>开始最终复述 <ArrowRight size={15} /></button></div></section>
+          <ReviewPanel />
           <section className="glossary-section" id="glossary"><div className="glossary-heading"><div><span className="eyebrow">SMALL INDEX</span><h2>六个词，反复回来查。</h2></div><span>术语不是终点，机制才是。</span></div><div className="glossary-grid">{glossary.map(([term, description]) => <div className="glossary-item" key={term}><span>{term}</span><p>{description}</p></div>)}</div></section>
           <footer id="about"><BrandMark small /><span>D-FINE LEARNING STUDIO · A quiet route into detection transformers.</span><a href="#top">回到顶部 ↑</a></footer>
         </div>
