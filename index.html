@@ -79,7 +79,13 @@ Error generating stack: `+l.message+`
     <div id="root"></div>
     <script>
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+        window.addEventListener("load", async () => {
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.filter((registration) => registration.active?.scriptURL.includes("service-worker.js")).map((registration) => registration.unregister()));
+            await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
+          } catch (_) {}
+        });
       }
     </script>
     <script defer src="https://manus-analytics.com/umami" data-website-id="95145e13-2118-4995-973b-e0728496d0e1"></script>

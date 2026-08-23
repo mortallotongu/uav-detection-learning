@@ -1,5 +1,5 @@
-/* Style reminder: Research Notebook — offline behavior should preserve the reading flow and quietly serve the course shell. */
-const CACHE_NAME = "dfine-learning-v1";
+/* Style reminder: Research Notebook — offline support must never mask a newer lesson build with stale cached HTML. Fresh navigation wins; cache is the fallback. */
+const CACHE_NAME = "dfine-learning-v2";
 const CORE = ["./", "./index.html", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -12,9 +12,18 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+  const request = event.request;
+  if (request.mode === "navigate") {
+    event.respondWith(fetch(request, { cache: "no-store" }).then((response) => {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+      return response;
+    }).catch(() => caches.match("./index.html")));
+    return;
+  }
+  event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
     const copy = response.clone();
-    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+    if (response.ok && new URL(request.url).origin === self.location.origin) caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
     return response;
-  }).catch(() => caches.match("./index.html"))));
+  })));
 });
