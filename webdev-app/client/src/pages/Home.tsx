@@ -149,6 +149,12 @@ function LabPanel({ kind }: { kind?: Lesson["lab"] }) {
   return null;
 }
 
+function QuizPanel({ lesson }: { lesson: FlatLesson }) {
+  const quiz = lesson.id === "iou" ? { question: "IoU 主要衡量什么？", options: ["模型有多自信", "预测框和真实框的重叠质量", "图片分辨率"], answer: 1, reason: "IoU 比较两个框的交集与并集，不是置信度。" } : lesson.id === "tensor" ? { question: "在 1 × 3 × 640 × 640 中，第二个数字 3 表示什么？", options: ["Batch 数量", "颜色通道数", "目标数量"], answer: 1, reason: "N×C×H×W 中，C 是通道；RGB 图像通常有 3 个颜色通道。" } : lesson.id === "attention" ? { question: "Cross-attention 与 self-attention 的关键区别是什么？", options: ["是否使用 Softmax", "Q 与 K/V 是否来自不同来源", "是否需要训练"], answer: 1, reason: "Cross-attention 中 Query 与 Key/Value 通常来自不同序列。" } : lesson.id === "matching" ? { question: "Hungarian Matching 解决什么问题？", options: ["确定图片尺寸", "给预测槽位和真实目标建立一对一对应", "把图片压缩成特征图"], answer: 1, reason: "集合预测没有天然顺序，需要匹配决定谁负责哪个真实目标。" } : lesson.id === "fdr" ? { question: "FDR 的核心变化是什么？", options: ["只提高分类分数", "把定位表示为可细化的细粒度分布过程", "取消所有边界框"], answer: 1, reason: "FDR 关注的是边界位置的分布表达和逐步 refinement。" } : { question: `关于“${lesson.title}”，下面哪句话最接近本节主旨？`, options: [lesson.takeaways[0], lesson.takeaways[1] || lesson.takeaways[0], "它只是一个需要背下来的缩写"], answer: 0, reason: "如果你能用自己的话说出第一条 takeaway，就说明已经抓住本节主线。" };
+  const [choice, setChoice] = useState<number | null>(null);
+  return <div className="quiz-card"><div className="quiz-heading"><span className="lab-tag">主动回忆 · 30 秒</span><span>{choice === null ? "先别看答案" : choice === quiz.answer ? "回答正确" : "再想一步"}</span></div><h3>{quiz.question}</h3><div className="quiz-options">{quiz.options.map((option, index) => <button key={option} className={choice === index ? (index === quiz.answer ? "is-correct" : "is-wrong") : ""} onClick={() => setChoice(index)}>{String.fromCharCode(65 + index)}<span>{option}</span></button>)}</div>{choice !== null && <p className={`quiz-feedback ${choice === quiz.answer ? "correct" : ""}`}><span>{choice === quiz.answer ? "✓" : "→"}</span>{choice === quiz.answer ? quiz.reason : `提示：${quiz.reason}`}</p>}</div>;
+}
+
 function ConceptStrip({ lesson }: { lesson: FlatLesson }) {
   return <div className="concept-strip"><span className="concept-strip-label">本节会遇到</span>{lesson.terms.map((term) => <span className="term-chip" key={term}>{term}</span>)}</div>;
 }
@@ -165,6 +171,7 @@ function LessonView({ lesson, completed, onComplete, onNext, onPrev }: { lesson:
       <LabPanel kind={lesson.lab} />
       <div className="takeaway-card"><div className="takeaway-heading"><Sparkles size={16} /><span>把这一节压缩成三句话</span></div><div className="takeaway-list">{lesson.takeaways.map((item) => <div key={item}><Check size={15} />{item}</div>)}</div></div>
       <div className="check-card"><div className="check-icon"><CircleHelp size={19} /></div><div><span className="check-label">现在试着回答</span><p>{lesson.check}</p></div></div>
+      <QuizPanel lesson={lesson} />
       <div className="lesson-footer"><button className={`complete-button ${completed ? "is-done" : ""}`} onClick={onComplete}>{completed ? <><Check size={16} />已掌握这节</> : <>标记为已掌握 <ArrowRight size={16} /></>}</button><div className="lesson-nav"><button onClick={onPrev} aria-label="上一节"><ChevronLeft size={17} /></button><button onClick={onNext} aria-label="下一节"><ChevronRight size={17} /></button></div></div>
     </article>
   );
@@ -175,7 +182,7 @@ function AppHeader({ onMenu }: { onMenu: () => void }) {
 }
 
 export default function Home() {
-  const [selectedId, setSelectedId] = useState(firstLesson.id);
+  const [selectedId, setSelectedId] = useState(() => { try { return localStorage.getItem("dfine-learning-current") || firstLesson.id; } catch { return firstLesson.id; } });
   const [completed, setCompleted] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem("dfine-learning-completed") || "[]"); } catch { return []; }
   });
@@ -192,6 +199,7 @@ export default function Home() {
   }, [search]);
 
   useEffect(() => { localStorage.setItem("dfine-learning-completed", JSON.stringify(completed)); }, [completed]);
+  useEffect(() => { localStorage.setItem("dfine-learning-current", selectedId); }, [selectedId]);
   useEffect(() => { document.title = `${selected.title} · D-FINE Learning Studio`; window.scrollTo({ top: 0, behavior: "smooth" }); }, [selectedId, selected.title]);
 
   const goTo = (id: string) => { setSelectedId(id); setSidebarOpen(false); };
